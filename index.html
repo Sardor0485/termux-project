@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> Lenta System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        .card-hover:hover { transform: translateY(-5px); transition: all 0.3s ease; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">📦 Dashboard</h1>
+                <p class="text-gray-500 text-sm">Lentalar boshqaruv tizimi v2.0</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="openModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow-lg flex items-center gap-2 transition">
+                    <i class="fas fa-plus"></i> Yangi Tovar
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 text-white">
+            <div class="bg-gradient-to-r from-blue-500 to-blue-700 p-6 rounded-2xl shadow-md card-hover">
+                <p class="opacity-80">Jami turlar</p>
+                <h2 id="totalTypes" class="text-4xl font-bold">0</h2>
+            </div>
+            <div class="bg-gradient-to-r from-emerald-500 to-emerald-700 p-6 rounded-2xl shadow-md card-hover">
+                <p class="opacity-80">Jami miqdor (Soni)</p>
+                <h2 id="totalQty" class="text-4xl font-bold">0</h2>
+            </div>
+            <div class="bg-gradient-to-r from-amber-500 to-amber-700 p-6 rounded-2xl shadow-md card-hover">
+                <p class="opacity-80">Tizim holati</p>
+                <h2 class="text-4xl font-bold italic">Faol</h2>
+            </div>
+        </div>
+
+        <div class="glass p-6 rounded-2xl shadow-sm mb-6 border border-gray-200">
+            <div class="relative">
+                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <input type="text" id="searchInput" onkeyup="searchTable()" placeholder="Kod yoki rang bo'yicha qidirish..." 
+                       class="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+            </div>
+        </div>
+
+        <div class="glass rounded-2xl shadow-sm overflow-hidden border border-gray-200">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 text-gray-600 font-semibold text-sm uppercase">
+                        <tr>
+                            <th class="p-4 border-b">Kod</th>
+                            <th class="p-4 border-b text-center">Joylashuv</th>
+                            <th class="p-4 border-b text-center">Soni</th>
+                            <th class="p-4 border-b text-right">Amallar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-gray-100">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl">
+            <h3 class="text-xl font-bold mb-6 flex items-center gap-2">
+                <i class="fas fa-edit text-blue-600"></i> Ma'lumot kiritish
+            </h3>
+            <div class="space-y-4">
+                <input type="text" id="m_code" placeholder="Kod (C820)" class="w-full p-3 border rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-400">
+                <div class="grid grid-cols-3 gap-2">
+                    <input type="text" id="m_row" placeholder="Qator" class="p-3 border rounded-xl bg-gray-50">
+                    <input type="number" id="m_st" placeholder="Stellaj" class="p-3 border rounded-xl bg-gray-50">
+                    <input type="number" id="m_et" placeholder="Etaj" class="p-3 border rounded-xl bg-gray-50">
+                </div>
+                <input type="number" id="m_count" placeholder="Soni" class="w-full p-3 border rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-blue-400">
+                
+                <div class="flex gap-3 pt-4">
+                    <button onclick="closeModal()" class="flex-1 py-3 bg-gray-100 rounded-xl font-semibold hover:bg-gray-200 transition">Bekor qilish</button>
+                    <button onclick="saveData()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 shadow-md transition">Saqlash</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Fake Data (Sizning rasmlaringiz asosida)
+        let inventory = [
+            { id: 1, code: 'C820', row_char: 'A', row_num: 1, col_num: 1, count: 31 },
+            { id: 2, code: 'C029', row_char: 'A', row_num: 1, col_num: 2, count: 27 },
+            { id: 3, code: 'C513', row_char: 'A', row_num: 1, col_num: 3, count: 9 },
+            { id: 4, code: 'C169', row_char: 'C', row_num: 4, col_num: 2, count: 209 },
+            { id: 5, code: 'C121', row_char: 'F', row_num: 2, col_num: 5, count: 54 },
+        ];
+
+        function renderTable() {
+            const body = document.getElementById('tableBody');
+            body.innerHTML = '';
+            let totalQty = 0;
+
+            inventory.forEach(item => {
+                totalQty += item.count;
+                const star = ['F','G','H'].includes(item.row_char) ? '⭐' : '';
+                body.innerHTML += `
+                    <tr class="hover:bg-blue-50/50 transition duration-150">
+                        <td class="p-4 font-bold text-blue-600">${item.code}</td>
+                        <td class="p-4 text-center">
+                            <span class="px-3 py-1 bg-gray-100 rounded-full text-xs font-semibold text-gray-600">
+                                ${star}${item.row_char} - ST${item.row_num} - ET${item.col_num}
+                            </span>
+                        </td>
+                        <td class="p-4 text-center font-semibold text-lg">${item.count}</td>
+                        <td class="p-4 text-right">
+                            <button onclick="editItem(${item.id})" class="text-blue-500 hover:text-blue-700 p-2"><i class="fas fa-edit"></i></button>
+                            <button onclick="deleteItem(${item.id})" class="text-red-400 hover:text-red-600 p-2"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('totalTypes').innerText = inventory.length;
+            document.getElementById('totalQty').innerText = totalQty;
+        }
+
+        // Qidiruv funksiyasi
+        function searchTable() {
+            let input = document.getElementById("searchInput").value.toUpperCase();
+            let rows = document.getElementById("tableBody").getElementsByTagName("tr");
+            
+            for (let i = 0; i < rows.length; i++) {
+                let codeCell = rows[i].getElementsByTagName("td")[0];
+                if (codeCell) {
+                    let textValue = codeCell.textContent || codeCell.innerText;
+                    rows[i].style.display = textValue.toUpperCase().indexOf(input) > -1 ? "" : "none";
+                }
+            }
+        }
+
+        function openModal() { document.getElementById('modal').classList.remove('hidden'); }
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
+        renderTable();
+    </script>
+</body>
+</html>

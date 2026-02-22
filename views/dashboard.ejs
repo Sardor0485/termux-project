@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SKLAD Dashboard</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="/public/style.css">
+</head>
+<body>
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-md-2 sidebar p-3">
+      <h4 class="text-white"><i class="fas fa-warehouse"></i> SKLAD</h4>
+      <ul class="nav flex-column">
+        <li class="nav-item"><a href="/dashboard" class="nav-link">Dashboard</a></li>
+        <li class="nav-item"><a href="/items" class="nav-link">Mahsulotlar</a></li>
+        <li class="nav-item"><a href="/kirim" class="nav-link">Kirim</a></li>
+        <li class="nav-item"><a href="/chiqim" class="nav-link">Chiqim</a></li>
+        <li class="nav-item"><a href="/logs" class="nav-link">Logs</a></li>
+      </ul>
+    </div>
+    <div class="col-md-10 p-4">
+      <div class="header mb-3 p-3 bg-white rounded shadow-sm d-flex justify-content-between">
+        <div><strong>SKLAD Boshqaruvi</strong></div>
+        <div><form action="/parse" method="post" id="nerForm"><input name="text" placeholder="Buyruq kiriting..." class="form-control" style="width:360px;display:inline-block"><button class="btn btn-primary">Parse</button></form></div>
+      </div>
+
+      <div class="row mb-3">
+        <div class="col-md-3"><div class="card p-3 text-center"><div class="value"><%= totalProducts %></div><div>Jami Mahsulotlar</div></div></div>
+        <div class="col-md-3"><div class="card p-3 text-center"><div class="value"><%= todayIn %></div><div>Bugungi Kirim</div></div></div>
+        <div class="col-md-3"><div class="card p-3 text-center"><div class="value"><%= todayOut %></div><div>Bugungi Chiqim</div></div></div>
+        <div class="col-md-3"><div class="card p-3 text-center"><div class="value"><%= fullness %>%</div><div>To'liqlik</div></div></div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header">So'nggi harakatlar</div>
+        <div class="card-body p-0"><table class="table mb-0"><thead><tr><th>#</th><th>Item</th><th>Type</th><th>Amount</th><th>Time</th></tr></thead><tbody><% logs.forEach(l=>{ %><tr><td><%= l.id %></td><td><%= l.item_name %></td><td><%= l.type %></td><td><%= l.amount %></td><td><%= l.created_at %></td></tr><% }) %></tbody></table></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Kam qoldi</div>
+        <div class="card-body p-0"><ul class="list-group list-group-flush"><% lowStock.forEach(p=>{ %><li class="list-group-item d-flex justify-content-between align-items-center"><%= p.name %> <span class="badge bg-danger rounded-pill"><%= p.soni %></span></li><% }) %></ul></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></script>
+</body>
+</html>
