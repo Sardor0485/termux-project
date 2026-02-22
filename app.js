@@ -2,7 +2,7 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const app = express();
 
-// TiDB Cloud ulanish sozlamalari
+// TiDB Cloud ulanish sozlamalari (SSL bilan)
 const pool = mysql.createPool({
     host: 'gateway01.eu-central-1.prod.aws.tidbcloud.com',
     port: 4000,
@@ -11,13 +11,13 @@ const pool = mysql.createPool({
     database: 'test',
     enableKeepAlive: true,
     ssl: {
-        rejectUnauthorized: false // Cloud baza uchun shart
+        rejectUnauthorized: false
     }
 });
 
 app.use(express.json());
 
-// Bazada jadval borligini tekshirish
+// Bazada jadvalni avtomatik tekshirish
 async function initDB() {
     try {
         await pool.execute(`
@@ -31,14 +31,13 @@ async function initDB() {
                 count INT DEFAULT 1
             )
         `);
-        console.log('Baza tayyor.');
+        console.log('Ma\'lumotlar bazasi tayyor.');
     } catch (err) {
-        console.error('Baza ulanishida xato:', err.message);
+        console.error('Baza ulanish xatosi:', err.message);
     }
 }
 initDB();
 
-// HTML Render funksiyasi
 function renderCell(itm) {
     if (!itm) return `<div class="btn-add" onclick="openAddModal(this)">+</div>`;
     const status = itm.count <= 3 ? 'danger' : itm.count < 10 ? 'warning' : 'ok';
@@ -54,7 +53,6 @@ function renderCell(itm) {
         </div>`;
 }
 
-// Asosiy sahifa
 app.get('/', async (req, res) => {
     try {
         const [rows] = await pool.execute("SELECT * FROM main_items");
@@ -76,7 +74,7 @@ app.get('/', async (req, res) => {
             });
             html += `</div>`;
         });
-        res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>
+        res.send(\`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>
             :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --accent: #58a6ff; }
             body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; padding: 20px; }
             .racks-container { display: flex; gap: 20px; overflow-x: auto; padding-bottom: 20px; }
@@ -89,39 +87,43 @@ app.get('/', async (req, res) => {
             .btn-add { color: var(--border); cursor: pointer; font-size: 24px; }
             .controls { display: none; position: absolute; bottom: -10px; z-index: 10; gap: 5px; }
             .inventory-item.active .controls { display: flex; }
-            .btn-m { background: #f85149; color: white; border:none; padding: 2px 8px; border-radius: 4px;}
-            .btn-p { background: #3fb950; color: white; border:none; padding: 2px 8px; border-radius: 4px;}
+            .btn-m { background: #f85149; color: white; border:none; padding: 2px 8px; border-radius: 4px; cursor: pointer;}
+            .btn-p { background: #3fb950; color: white; border:none; padding: 2px 8px; border-radius: 4px; cursor: pointer;}
         </style></head><body>
-        <div id="main">${html}</div>
+        <div id="main">\${html}</div>
         <script>
             function toggleActive(el) { el.classList.toggle('active'); }
             async function updateStock(id, delta, e, cid) {
                 e.stopPropagation();
-                const res = await fetch('/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, delta}) });
-                const data = await res.json();
-                document.getElementById(cid).innerHTML = data.html;
+                try {
+                    const res = await fetch('/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, delta}) });
+                    const data = await res.json();
+                    document.getElementById(cid).innerHTML = data.html;
+                } catch(e) { console.error("Xato:", e); }
             }
-        </script></body></html>`);
-    } catch(err) { res.status(500).send("Baza xatosi: " + err.message); }
+        </script></body></html>\`);
+    } catch(err) { res.status(500).send("Xatolik: " + err.message); }
 });
 
-// API qismlari
 app.post('/update', async (req,res) => {
     const {id, delta} = req.body;
-    const [rows] = await pool.execute("SELECT * FROM main_items WHERE id=?", [id]);
-    const itm = rows[0];
-    const newQty = itm.count + delta;
-    if(newQty <= 0) {
-        await pool.execute("DELETE FROM main_items WHERE id=?", [id]);
-        res.json({html: renderCell(null)});
-    } else {
-        await pool.execute("UPDATE main_items SET count=? WHERE id=?", [newQty, id]);
-        itm.count = newQty;
-        res.json({html: renderCell(itm)});
-    }
+    try {
+        const [rows] = await pool.execute("SELECT * FROM main_items WHERE id=?", [id]);
+        if(rows.length === 0) return res.json({html: renderCell(null)});
+        const itm = rows[0];
+        const newQty = itm.count + delta;
+        if(newQty <= 0) {
+            await pool.execute("DELETE FROM main_items WHERE id=?", [id]);
+            res.json({html: renderCell(null)});
+        } else {
+            await pool.execute("UPDATE main_items SET count=? WHERE id=?", [newQty, id]);
+            itm.count = newQty;
+            res.json({html: renderCell(itm)});
+        }
+    } catch(e) { res.status(500).json({error: e.message}); }
 });
 
-// Render uchun Portni sozlash
+// Render uchun Portni dinamik sozlash
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log('Server yonik: ' + PORT));
+app.listen(PORT, '0.0.0.0', () => console.log('Server ' + PORT + ' portda ishga tushdi'));
 
