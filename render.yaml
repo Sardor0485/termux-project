@@ -1,0 +1,21 @@
+# Render.yaml Configuration for Node.js Application
+
+# The name of the service
+service:
+  name: NodeApp
+  type: web
+
+# The environment for the service
+env:
+  type: node
+
+# The build settings
+build:
+  env:
+    NODE_VERSION: "14"
+
+# The start command to run the application
+startCommand: npm start
+
+# Specify the resources for the service
+instances: 1
