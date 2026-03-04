@@ -1,0 +1,12 @@
+# Exported from Render on 2026-03-04T01:57:04Z
+version: "1"
+services:
+- type: web
+  name: termux-project-1
+  runtime: node
+  repo: https://github.com/Sardor0485/termux-project
+  plan: free
+  region: oregon
+  buildCommand: npm install
+  startCommand: node app.js
+  autoDeployTrigger: commit
