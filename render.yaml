@@ -1,36 +1,24 @@
-<<<<<<< HEAD
-# Exported from Render on 2026-03-04T01:57:04Z
-version: "1"
 services:
-- type: web
-  name: termux-project-1
-  runtime: node
-  repo: https://github.com/Sardor0485/termux-project
-  plan: free
-  region: oregon
-  buildCommand: npm install
-  startCommand: node app.js
-  autoDeployTrigger: commit
-=======
-# Render.yaml Configuration for Node.js Application
-
-# The name of the service
-service:
-  name: NodeApp
-  type: web
-
-# The environment for the service
-env:
-  type: node
-
-# The build settings
-build:
-  env:
-    NODE_VERSION: "14"
-
-# The start command to run the application
-startCommand: npm start
-
-# Specify the resources for the service
-instances: 1
->>>>>>> fd25f861b56834e97c809ee346fbd7804211ff14
+  - type: web
+    name: warehouse-bot
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: BOT_TOKEN
+        value: "8260246769:AAHP0OOyCv_JrOWhVRsD0rsImN7REvhFUz4"
+      - key: DB_HOST
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        value: "padval"
+      - key: NODE_ENV
+        value: "production"
+databases:
+  - name: warehouse-db
+    databaseName: padval
+    user: postgres
