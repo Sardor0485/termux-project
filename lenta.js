@@ -1,38 +1,46 @@
 const { Telegraf, Markup, session } = require('telegraf');
 const mysql = require('mysql2/promise');
 
+// --- KONFIGURATSIYA ---
 const TOKEN = '8088217797:AAHcSdgdfwPyA7YwjJMLCk6pswQgZfLvdck';
 const dbConfig = {
     host: 'localhost',
     user: 'root',
-    password: '',
+    password: '', // Termuxda parolsiz bo'lsa bo'sh qoldiring
     database: 'ambar'
 };
 
-const bot = new Telegraf(TOKEN);
+const bot = new Telegraf(TOKEN, {
+    handlerTimeout: 90_000 // Ulanish vaqti biroz uzaytirildi
+});
+
 bot.use(session());
 
-// Ma'lumotlar bazasi bilan ishlash uchun funksiya
+// Ma'lumotlar bazasi bilan ishlash
 async function executeQuery(sql, params) {
-    const connection = await mysql.createConnection(dbConfig);
+    let connection;
     try {
+        connection = await mysql.createConnection(dbConfig);
         const [rows] = await connection.execute(sql, params);
         return rows;
+    } catch (err) {
+        console.error("DB Xatosi:", err.message);
+        throw err;
     } finally {
-        await connection.end();
+        if (connection) await connection.end();
     }
 }
 
-// Asosiy menyu
+// Tugmalar
 const mainKeyboard = Markup.keyboard([
     ['➕ Tovar qo\'shish', '📊 Statistika']
 ]).resize();
 
 /* =======================
-   🚀 START
+   🚀 START & HELP
 ======================= */
 bot.start((ctx) => {
-    ctx.session = {};
+    ctx.session = {}; // Sessionni tozalash
     ctx.reply("📦 Lentalar ombori tizimiga xush kelibsiz!", mainKeyboard);
 });
 
@@ -41,16 +49,14 @@ bot.start((ctx) => {
 ======================= */
 bot.hears('📊 Statistika', async (ctx) => {
     try {
-        const stats = await executeQuery(
-            "SELECT row_char, COUNT(*) as count FROM main_items GROUP BY row_char ORDER BY row_char", []
-        );
+        const stats = await executeQuery("SELECT row_char, COUNT(*) as count FROM main_items GROUP BY row_char ORDER BY row_char", []);
         const totalRows = await executeQuery("SELECT COUNT(*) as total FROM main_items", []);
         const totalItems = await executeQuery("SELECT SUM(count) as total_qty FROM main_items", []);
 
         let report = "📊 *Baza statistikasi:*\n\n";
         stats.forEach(s => {
             let star = ['F', 'G', 'H'].includes(s.row_char.toUpperCase()) ? "⭐ " : "🔹 ";
-            report += `${star}${s.row_char} qatori: ${s.count} turdagi lenta\n`;
+            report += `${star}${s.row_char} qatori: ${s.count} ta\n`;
         });
         report += `\n📦 *Jami turlar: ${totalRows[0].total} ta*`;
         report += `\n🔢 *Umumiy miqdor: ${totalItems[0].total_qty || 0} ta*`;
@@ -62,7 +68,7 @@ bot.hears('📊 Statistika', async (ctx) => {
 });
 
 /* =======================
-   ✏️ TAHRIRLASH (EDIT) BOSHQARUVI
+   ✏️ TAHRIRLASH BOSHQARUVI
 ======================= */
 bot.action(/^edit_(\d+)$/, async (ctx) => {
     const id = ctx.match[1];
@@ -89,15 +95,14 @@ bot.action(/^edit_(\d+)$/, async (ctx) => {
 
 bot.action(/^set_(code|row|st|et|qty)_(\d+)$/, async (ctx) => {
     const field = ctx.match[1];
-    if(!ctx.session.editTarget) ctx.session.editTarget = { id: ctx.match[2] };
-    ctx.session.editTarget.field = field;
+    ctx.session.editTarget = { id: ctx.match[2], field: field };
 
     const labels = {
         code: "Yangi kodni kiriting:",
         row: "Yangi qatorni kiriting (A, B...):",
         st: "Yangi stellaj raqamini kiriting:",
         et: "Yangi etaj raqamini kiriting:",
-        qty: "Yangi sonini (miqdorini) kiriting:"
+        qty: "Yangi sonini kiriting:"
     };
 
     await ctx.reply(labels[field]);
@@ -115,19 +120,17 @@ bot.action(/^del_(\d+)$/, async (ctx) => {
 
 bot.action('cancel_action', async (ctx) => {
     ctx.session.editTarget = null;
-    ctx.session.step = null;
     await ctx.editMessageText("Amal bekor qilindi.");
-    await ctx.answerCbQuery();
 });
 
 /* =======================
-   🔥 ASOSIY TEXT HANDLER
+   🔥 ASOSIY HANDLER
 ======================= */
 bot.on('text', async (ctx) => {
     const text = ctx.message.text.trim();
     if (!ctx.session) ctx.session = {};
 
-    // 1. TAHRIRLASH JARAYONI (Saqlash qismi)
+    // 1. Tahrirlashni saqlash
     if (ctx.session.editTarget && ctx.session.editTarget.field) {
         const { id, field } = ctx.session.editTarget;
         const dbFields = { code: 'code', row: 'row_char', st: 'row_num', et: 'col_num', qty: 'count' };
@@ -136,45 +139,35 @@ bot.on('text', async (ctx) => {
         try {
             await executeQuery(`UPDATE main_items SET ${dbFields[field]} = ? WHERE id = ?`, [val, id]);
             ctx.session.editTarget = null;
-            return ctx.reply("✅ Muvaffaqiyatli yangilandi!", mainKeyboard);
+            return ctx.reply("✅ Yangilandi!", mainKeyboard);
         } catch (error) {
-            if (error.code === 'ER_DUP_ENTRY') {
-                return ctx.reply("❌ Xato: Bu manzil boshqa mahsulotga band! Iltimos, boshqa qiymat kiriting.");
-            }
-            console.error(error);
-            return ctx.reply("❌ Yangilashda xato yuz berdi.");
+            return ctx.reply("❌ Xato! Ehtimol bu joy banddir.");
         }
     }
 
-    // 2. QO'SHISH TUGMASI
+    // 2. Qo'shishni boshlash
     if (text === '➕ Tovar qo\'shish') {
         ctx.session.step = 'get_code';
         ctx.session.data = {};
         return ctx.reply("📦 Yangi tovar kodini yuboring:", Markup.removeKeyboard());
     }
 
-    // 3. QO'SHISH BOSQICHLARI
+    // 3. Qo'shish bosqichlari
     if (ctx.session.step) {
-        if (ctx.session.step === 'get_code') {
-            ctx.session.data.code = text;
-            ctx.session.step = 'get_row';
-            return ctx.reply("📍 Qatorni kiriting (Masalan: A):");
+        const steps = {
+            'get_code': { next: 'get_row', field: 'code', msg: "📍 Qator (Masalan: A):" },
+            'get_row': { next: 'get_st', field: 'row_char', msg: "🔢 Stellaj raqami:", format: t => t.toUpperCase() },
+            'get_st': { next: 'get_et', field: 'row_num', msg: "🏢 Etaj raqami:" },
+            'get_et': { next: 'get_qty', field: 'col_num', msg: "🔢 Soni:" }
+        };
+
+        const current = steps[ctx.session.step];
+        if (current) {
+            ctx.session.data[current.field] = current.format ? current.format(text) : text;
+            ctx.session.step = current.next;
+            return ctx.reply(current.msg);
         }
-        if (ctx.session.step === 'get_row') {
-            ctx.session.data.row_char = text.toUpperCase();
-            ctx.session.step = 'get_st';
-            return ctx.reply("🔢 Stellaj raqamini kiriting:");
-        }
-        if (ctx.session.step === 'get_st') {
-            ctx.session.data.row_num = text;
-            ctx.session.step = 'get_et';
-            return ctx.reply("🏢 Etaj raqamini kiriting:");
-        }
-        if (ctx.session.step === 'get_et') {
-            ctx.session.data.col_num = text;
-            ctx.session.step = 'get_qty';
-            return ctx.reply("🔢 Tovardan nechta bor? (Soni):");
-        }
+
         if (ctx.session.step === 'get_qty') {
             const d = ctx.session.data;
             try {
@@ -183,21 +176,17 @@ bot.on('text', async (ctx) => {
                     [d.code, d.row_char, d.row_num, d.col_num, text]
                 );
                 ctx.session.step = null;
-                return ctx.reply("✅ Yangi lenta muvaffaqiyatli qo'shildi!", mainKeyboard);
-            } catch (error) {
-                if (error.code === 'ER_DUP_ENTRY') {
-                    ctx.session.step = null; 
-                    return ctx.reply(`❌ Xato: ${d.row_char}-${d.row_num}-${d.col_num} manzili band! Avval uni o'chiring yoki boshqa manzil bering.`, mainKeyboard);
-                }
-                console.error(error);
-                return ctx.reply("❌ Xatolik yuz berdi.");
+                return ctx.reply("✅ Qo'shildi!", mainKeyboard);
+            } catch (e) {
+                ctx.session.step = null;
+                return ctx.reply("❌ Xato! Manzil band yoki baza ulanmagan.", mainKeyboard);
             }
         }
     }
 
-    // 4. QIDIRUV
+    // 4. Qidiruv
     if (text !== '📊 Statistika') {
-        const results = await executeQuery(`SELECT * FROM main_items WHERE code LIKE ?`, [`%${text}%`]);
+        const results = await executeQuery(`SELECT * FROM main_items WHERE code LIKE ? OR row_char = ?`, [`%${text}%`, text.toUpperCase()]);
         if (results.length === 0) return ctx.reply("🔍 Hech narsa topilmadi.");
 
         for (const item of results) {
@@ -205,18 +194,25 @@ bot.on('text', async (ctx) => {
             const msg = `📦 Kod: *${item.code}*\n📍 Joyi: ${star}${item.row_char} qator, st-${item.row_num}, et-${item.col_num}\n🔢 Soni: *${item.count || 0}* ta`;
 
             await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard([
-                [
-                    Markup.button.callback('📝 Edit', `edit_${item.id}`),
-                    Markup.button.callback('🗑 O\'chirish', `del_${item.id}`)
-                ]
+                [Markup.button.callback('📝 Edit', `edit_${item.id}`), Markup.button.callback('🗑 O\'chirish', `del_${item.id}`)]
             ]));
         }
     }
 });
 
-bot.launch().then(() => console.log("🚀 Lenta Bot Pro ishga tushdi!"));
+// Botni ishga tushirish (Xatolikka qarshi qayta urinish bilan)
+const startBot = async () => {
+    try {
+        await bot.launch();
+        console.log("🚀 Lenta Bot Pro ishga tushdi!");
+    } catch (err) {
+        console.error("Ulanishda xato, 5 soniyadan keyin qayta urinish...", err.message);
+        setTimeout(startBot, 5000);
+    }
+};
 
-// Xatoliklarni ushlash
-process.on('uncaughtException', (err) => console.log('Kutilmagan xato:', err));
-process.on('unhandledRejection', (reason, promise) => console.log('Rad etilgan so\'rov:', reason));
+startBot();
+
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
