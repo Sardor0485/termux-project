@@ -64,7 +64,7 @@ bot.action(/^edit_(\d+)$/, async (ctx) => {
         ctx.session.editTarget = { id: id };
 
         const text = `🛠 <b>Tahrirlash:</b> ${item.nomi}\n📍 Hozirgi joyi: ${item.qator}-${item.bolim}\n\nNimani o'zgartirmoqchisiz?`;
-        
+
         await ctx.editMessageText(text, {
             parse_mode: 'HTML',
             ...Markup.inlineKeyboard([
@@ -142,12 +142,13 @@ bot.on('text', async (ctx) => {
         }
     }
 
-    // 3. QIDIRUV (STANDART HOLAT)
+    // 3. QIDIRUV (KENGAYTIRILGAN)
     const loading = await ctx.reply("🔎 Qidirilmoqda...");
     try {
+        // SQL so'rovi: Nomida bor bo'lsa, Qatoriga mos kelsa yoki Bo'limiga mos kelsa hammasini chiqaradi
         const [results] = await pool.execute(
-            "SELECT id, nomi, qator, bolim FROM tavarlar WHERE nomi LIKE ? OR qator LIKE ? OR bolim LIKE ?",
-            [`%${text}%`, `%${text}%`, `%${text}%`]
+            "SELECT id, nomi, qator, bolim FROM tavarlar WHERE nomi LIKE ? OR qator = ? OR bolim = ?",
+            [`%${text}%`, text.toUpperCase(), text]
         );
 
         await ctx.deleteMessage(loading.message_id).catch(() => {});
@@ -178,4 +179,3 @@ bot.launch().then(() => console.log("✅ Bot muvaffaqiyatli ishga tushdi!"));
 // Graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
-
